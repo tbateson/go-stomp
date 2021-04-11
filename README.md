@@ -1,3 +1,13 @@
+# Latest version is V3
+
+*V2 is no longer supported*
+
+Migrate by updating your imports from `github.com/go-stomp/stomp` to `github.com/go-stomp/stomp/v3`
+
+[V3 Docs](https://pkg.go.dev/github.com/go-stomp/stomp/v3)
+
+---
+
 # stomp
 
 Go language implementation of a STOMP client library.
