@@ -1,6 +1,14 @@
 stomp
 =====
 
+# Latest version is V3
+
+*V1 is no longer supported*
+
+[Latest version Docs](https://pkg.go.dev/github.com/go-stomp/stomp/v3)
+
+---
+
 Go language implementation of a STOMP client library.
 
 Features:
