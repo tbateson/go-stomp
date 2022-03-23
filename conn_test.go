@@ -32,7 +32,7 @@ func (rw *fakeReaderWriter) Close() error {
 
 func (s *StompSuite) Test_conn_option_set_logger(c *C) {
 	fc1, fc2 := testutil.NewFakeConn(c)
-		go func() {
+	go func() {
 
 		defer func() {
 			fc2.Close()

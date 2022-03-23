@@ -750,7 +750,9 @@ func (c *Conn) createAckNackFrame(msg *Message, ack bool) (*frame.Frame, error) 
 			return nil, missingHeader(frame.MessageId)
 		}
 	case V12:
-		if ack, ok := msg.Header.Contains(frame.Id); ok {
+		// message frame contains ack header
+		if ack, ok := msg.Header.Contains(frame.Ack); ok {
+			// ack frame should reference it as id
 			f.Header.Add(frame.Id, ack)
 		} else {
 			return nil, missingHeader(frame.Id)
