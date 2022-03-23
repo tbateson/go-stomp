@@ -384,7 +384,7 @@ func subscribeHelper(c *C, ackMode AckMode, version Version, opts ...func(*frame
 				frame.Subscription, id,
 				frame.MessageId, messageId,
 				frame.Destination, destination)
-			if version == V12 {
+			if version == V12 && ackMode.ShouldAck() {
 				f4.Header.Add(frame.Ack, messageId)
 			}
 			f4.Body = []byte(bodyText)
