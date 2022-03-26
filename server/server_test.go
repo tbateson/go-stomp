@@ -50,27 +50,28 @@ func (s *ServerSuite) TestConnectAndDisconnect(c *C) {
 func (s *ServerSuite) TestHeartBeatingTolerance(c *C) {
 	// Heart beat should not close connection exactly after not receiving message after cx
 	//  it should add a pretty decent amount of time to counter network delay of other timing issues
-	addr := ":59092"
-	l, err := net.Listen("tcp", addr)
+	l, err := net.Listen("tcp", `127.0.0.1:0`)
 	c.Assert(err, IsNil)
 	defer func() { l.Close() }()
 	serv := Server{
-		Addr:          "",
+		Addr:          l.Addr().String(),
 		Authenticator: nil,
 		QueueStorage:  nil,
 		HeartBeat:     5 * time.Millisecond,
 	}
 	go serv.Serve(l)
 
-	conn, err := net.Dial("tcp", "127.0.0.1"+addr)
+	conn, err := net.Dial("tcp", l.Addr().String())
 	c.Assert(err, IsNil)
 	defer conn.Close()
 
-	client, err := stomp.Connect(conn, stomp.ConnOpt.HeartBeat(5 * time.Millisecond, 5 * time.Millisecond))
+	client, err := stomp.Connect(conn, 
+		stomp.ConnOpt.HeartBeat(5 * time.Millisecond, 5 * time.Millisecond),
+	)
 	c.Assert(err, IsNil)
 	defer client.Disconnect()
 
-	time.Sleep(serv.HeartBeat * 50) // let it go for some time to allow client and server to exchange some heart beat
+	time.Sleep(serv.HeartBeat * 20) // let it go for some time to allow client and server to exchange some heart beat
 
 	// Ensure the server has not closed his readChannel
 	err = client.Send("/topic/whatever", "text/plain", []byte("hello"))

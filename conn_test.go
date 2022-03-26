@@ -32,7 +32,7 @@ func (rw *fakeReaderWriter) Close() error {
 
 func (s *StompSuite) Test_conn_option_set_logger(c *C) {
 	fc1, fc2 := testutil.NewFakeConn(c)
-		go func() {
+	go func() {
 
 		defer func() {
 			fc2.Close()
@@ -384,8 +384,8 @@ func subscribeHelper(c *C, ackMode AckMode, version Version, opts ...func(*frame
 				frame.Subscription, id,
 				frame.MessageId, messageId,
 				frame.Destination, destination)
-			if version == V12 {
-				f4.Header.Add(frame.Id, messageId)
+			if version == V12 && ackMode.ShouldAck() {
+				f4.Header.Add(frame.Ack, messageId)
 			}
 			f4.Body = []byte(bodyText)
 			err = rw.Write(f4)
@@ -395,7 +395,7 @@ func subscribeHelper(c *C, ackMode AckMode, version Version, opts ...func(*frame
 				f5, _ := rw.Read()
 				c.Assert(f5.Command, Equals, "ACK")
 				if version == V12 {
-					c.Assert(f5.Header.Get("id"), Equals, messageId)
+					c.Assert(f5.Header.Get(frame.Id), Equals, messageId)
 				} else {
 					c.Assert(f5.Header.Get("subscription"), Equals, id)
 					c.Assert(f5.Header.Get("message-id"), Equals, messageId)
@@ -431,6 +431,9 @@ func subscribeHelper(c *C, ackMode AckMode, version Version, opts ...func(*frame
 		c.Assert(msg.Body, DeepEquals, []byte(bodyText))
 		c.Assert(msg.Destination, Equals, "/queue/test-1")
 		c.Assert(msg.Header.Get(frame.MessageId), Equals, messageId)
+		if version == V12 && ackMode.ShouldAck() {
+			c.Assert(msg.Header.Get(frame.Ack), Equals, messageId)
+		}
 
 		c.Assert(msg.ShouldAck(), Equals, ackMode.ShouldAck())
 		if msg.ShouldAck() {
@@ -491,8 +494,8 @@ func subscribeTransactionHelper(c *C, ackMode AckMode, version Version, abort bo
 				frame.Subscription, id,
 				frame.MessageId, messageId,
 				frame.Destination, destination)
-			if version == V12 {
-				f4.Header.Add(frame.Id, messageId)
+			if version == V12 && ackMode.ShouldAck() {
+				f4.Header.Add(frame.Ack, messageId)
 			}
 			f4.Body = []byte(bodyText)
 			err = rw.Write(f4)
@@ -514,7 +517,7 @@ func subscribeTransactionHelper(c *C, ackMode AckMode, version Version, abort bo
 					c.Assert(f5.Command, Equals, "ACK")
 				}
 				if version == V12 {
-					c.Assert(f5.Header.Get("id"), Equals, messageId)
+					c.Assert(f5.Header.Get(frame.Id), Equals, messageId)
 				} else {
 					c.Assert(f5.Header.Get("subscription"), Equals, id)
 					c.Assert(f5.Header.Get("message-id"), Equals, messageId)
