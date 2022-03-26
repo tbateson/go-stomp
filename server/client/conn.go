@@ -406,11 +406,12 @@ func (c *Conn) cleanupSubChannel() {
 
 // Send a frame to the client, allocating necessary headers prior.
 func (c *Conn) allocateMessageId(f *frame.Frame, sub *Subscription) {
-	if f.Command == frame.MESSAGE {
+	if f.Command == frame.MESSAGE || f.Command == frame.ACK {
 		// allocate the value of message-id for this frame
 		c.lastMsgId++
 		messageId := strconv.FormatUint(c.lastMsgId, 10)
 		f.Header.Set(frame.MessageId, messageId)
+		f.Header.Set(frame.Id, messageId)
 
 		// if there is any requirement by the client to acknowledge, set
 		// the ack header as per STOMP 1.2
