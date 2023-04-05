@@ -21,27 +21,31 @@ const DefaultMsgSendTimeout = 10 * time.Second
 // Default receipt timeout in Conn.Send function
 const DefaultRcvReceiptTimeout = 30 * time.Second
 
+// Default receipt timeout in Conn.Disconnect function
+const DefaultDisconnectReceiptTimeout = 30 * time.Second
+
 // Reply-To header used for temporary queues/RPC with rabbit.
 const ReplyToHeader = "reply-to"
 
 // A Conn is a connection to a STOMP server. Create a Conn using either
 // the Dial or Connect function.
 type Conn struct {
-	conn                    io.ReadWriteCloser
-	readCh                  chan *frame.Frame
-	writeCh                 chan writeRequest
-	version                 Version
-	session                 string
-	server                  string
-	readTimeout             time.Duration
-	writeTimeout            time.Duration
-	msgSendTimeout          time.Duration
-	rcvReceiptTimeout       time.Duration
-	hbGracePeriodMultiplier float64
-	closed                  bool
-	closeMutex              *sync.Mutex
-	options                 *connOptions
-	log                     Logger
+	conn                     io.ReadWriteCloser
+	readCh                   chan *frame.Frame
+	writeCh                  chan writeRequest
+	version                  Version
+	session                  string
+	server                   string
+	readTimeout              time.Duration
+	writeTimeout             time.Duration
+	msgSendTimeout           time.Duration
+	rcvReceiptTimeout        time.Duration
+	disconnectReceiptTimeout time.Duration
+	hbGracePeriodMultiplier  float64
+	closed                   bool
+	closeMutex               *sync.Mutex
+	options                  *connOptions
+	log                      Logger
 }
 
 type writeRequest struct {
@@ -195,6 +199,7 @@ func Connect(conn io.ReadWriteCloser, opts ...func(*Conn) error) (*Conn, error) 
 
 	c.msgSendTimeout = options.MsgSendTimeout
 	c.rcvReceiptTimeout = options.RcvReceiptTimeout
+	c.disconnectReceiptTimeout = options.DisconnectReceiptTimeout
 
 	if options.ResponseHeadersCallback != nil {
 		options.ResponseHeadersCallback(response.Header)
@@ -421,13 +426,18 @@ func (c *Conn) Disconnect() error {
 		C:     ch,
 	}
 
-	response := <-ch
-	if response.Command != frame.RECEIPT {
-		return newError(response)
+	err := readReceiptWithTimeout(ch, c.disconnectReceiptTimeout, ErrDisconnectReceiptTimeout)
+	if err == nil {
+		c.closed = true
+		return c.conn.Close()
 	}
 
-	c.closed = true
-	return c.conn.Close()
+	if err == ErrDisconnectReceiptTimeout {
+		c.closed = true
+		_ = c.conn.Close()
+	}
+
+	return err
 }
 
 // MustDisconnect will disconnect 'ungracefully' from the STOMP server.
@@ -480,7 +490,7 @@ func (c *Conn) Send(destination, contentType string, body []byte, opts ...func(*
 			return err
 		}
 
-		err = readReceiptWithTimeout(request, c.rcvReceiptTimeout)
+		err = readReceiptWithTimeout(request.C, c.rcvReceiptTimeout, ErrMsgReceiptTimeout)
 		if err != nil {
 			return err
 		}
@@ -497,7 +507,7 @@ func (c *Conn) Send(destination, contentType string, body []byte, opts ...func(*
 	return nil
 }
 
-func readReceiptWithTimeout(request writeRequest, timeout time.Duration) error {
+func readReceiptWithTimeout(responseChan chan *frame.Frame, timeout time.Duration, timeoutErr error) error {
 	var timeoutChan <-chan time.Time
 	if timeout > 0 {
 		timeoutChan = time.After(timeout)
@@ -505,8 +515,8 @@ func readReceiptWithTimeout(request writeRequest, timeout time.Duration) error {
 
 	select {
 	case <-timeoutChan:
-		return ErrMsgReceiptTimeout
-	case response := <-request.C:
+		return timeoutErr
+	case response := <-responseChan:
 		if response.Command != frame.RECEIPT {
 			return newError(response)
 		}
