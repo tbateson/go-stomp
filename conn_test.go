@@ -312,6 +312,35 @@ func (s *StompSuite) Test_connect_not_panic_on_empty_response(c *C) {
 	<-stop
 }
 
+func (s *StompSuite) Test_successful_disconnect_with_receipt_timeout(c *C) {
+	resetId()
+	fc1, fc2 := testutil.NewFakeConn(c)
+
+	defer func() {
+		fc2.Close()
+	}()
+
+	go func() {
+		reader := frame.NewReader(fc2)
+		writer := frame.NewWriter(fc2)
+
+		f1, err := reader.Read()
+		c.Assert(err, IsNil)
+		c.Assert(f1.Command, Equals, "CONNECT")
+		connectedFrame := frame.New("CONNECTED")
+		err = writer.Write(connectedFrame)
+		c.Assert(err, IsNil)
+	}()
+
+	client, err := Connect(fc1, ConnOpt.DisconnectReceiptTimeout(1 * time.Nanosecond))
+	c.Assert(err, IsNil)
+	c.Assert(client, NotNil)
+
+	err = client.Disconnect()
+	c.Assert(err, Equals, ErrDisconnectReceiptTimeout)
+	c.Assert(client.closed, Equals, true)
+}
+
 // Sets up a connection for testing
 func connectHelper(c *C, version Version) (*Conn, *fakeReaderWriter) {
 	fc1, fc2 := testutil.NewFakeConn(c)
@@ -697,7 +726,7 @@ func (s *StompSuite) Test_TimeoutTriggers(c *C) {
 		C:     make(chan *frame.Frame),
 	}
 
-	err := readReceiptWithTimeout(request, timeout)
+	err := readReceiptWithTimeout(request.C, timeout, ErrMsgReceiptTimeout)
 
 	c.Assert(err, NotNil)
 }
@@ -715,7 +744,7 @@ func (s *StompSuite) Test_ChannelReceviesReceipt(c *C) {
 	}
 
 	go sendFrameHelper(&receipt, request.C)
-	err := readReceiptWithTimeout(request, timeout)
+	err := readReceiptWithTimeout(request.C, timeout, ErrMsgReceiptTimeout)
 
 	c.Assert(err, IsNil)
 }
@@ -733,7 +762,7 @@ func (s *StompSuite) Test_ChannelReceviesNonReceipt(c *C) {
 	}
 
 	go sendFrameHelper(&receipt, request.C)
-	err := readReceiptWithTimeout(request, timeout)
+	err := readReceiptWithTimeout(request.C, timeout, ErrMsgReceiptTimeout)
 
 	c.Assert(err, NotNil)
 }
@@ -751,7 +780,7 @@ func (s *StompSuite) Test_ZeroTimeout(c *C) {
 	}
 
 	go sendFrameHelper(&receipt, request.C)
-	err := readReceiptWithTimeout(request, timeout)
+	err := readReceiptWithTimeout(request.C, timeout, ErrMsgReceiptTimeout)
 
 	c.Assert(err, IsNil)
 }
